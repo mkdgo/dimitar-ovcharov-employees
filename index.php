@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+
 function escape(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -206,8 +208,19 @@ $uploadedName = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $upload = $_FILES['csv_file'] ?? null;
-    if (!is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+    $requestSize = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+    if (!is_array($upload) && $requestSize > MAX_UPLOAD_BYTES + 65536) {
+        $errorMessage = 'The upload exceeds the 2 MB limit or the PHP post_max_size setting.';
+    } elseif (!is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         $errorMessage = 'Choose a CSV file to analyze.';
+    } elseif (($upload['error'] ?? UPLOAD_ERR_OK) === UPLOAD_ERR_FORM_SIZE) {
+        $errorMessage = 'The CSV file exceeds the 2 MB upload limit.';
+    } elseif (($upload['error'] ?? UPLOAD_ERR_OK) === UPLOAD_ERR_INI_SIZE) {
+        $errorMessage = 'PHP rejected the upload. Set upload_max_filesize to at least 2M and post_max_size above 2M.';
+    } elseif (($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+        $errorMessage = 'The file upload failed. Please try again.';
+    } elseif ((int) ($upload['size'] ?? 0) > MAX_UPLOAD_BYTES) {
+        $errorMessage = 'The CSV file exceeds the 2 MB upload limit.';
     } else {
         $uploadedName = basename((string) ($upload['name'] ?? 'upload.csv'));
         try {
@@ -252,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: .02em; }
         .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; color: var(--surface); background: var(--green-dark); font-size: 18px; }
         .edition { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .09em; }
-        .intro { max-width: 720px; margin-bottom: 34px; animation: rise .45s ease-out both; }
+        .intro { margin-bottom: 34px; animation: rise .45s ease-out both; }
         .eyebrow { margin: 0 0 10px; color: var(--green); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
         h1, h2, p { margin-top: 0; }
         h1 { margin-bottom: 13px; font: 500 clamp(37px, 5vw, 58px)/1.02 Georgia, serif; letter-spacing: 0; }
@@ -310,7 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <main class="shell">
     <header class="masthead">
         <div class="brand"><span class="brand-mark" aria-hidden="true">↔</span><span>Team Overlap</span></div>
-        <div class="edition">Workforce analysis / 01</div>
     </header>
 
     <section class="intro" aria-labelledby="page-title">
@@ -323,6 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <form class="upload-form" method="post" enctype="multipart/form-data">
             <div>
                 <label for="csv-file">Employee project CSV</label>
+                <input type="hidden" name="MAX_FILE_SIZE" value="<?= MAX_UPLOAD_BYTES ?>">
                 <input id="csv-file" name="csv_file" type="file" accept=".csv,text/csv" required>
             </div>
             <div>
@@ -336,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button type="submit">Analyze file <span aria-hidden="true">→</span></button>
         </form>
-        <p class="upload-note">CSV columns: EmpID, ProjectID, DateFrom, DateTo. A blank or NULL end date means today.</p>
+        <p class="upload-note">Maximum file size: 2 MB. CSV columns: EmpID, ProjectID, DateFrom, DateTo. A blank or NULL end date means today.</p>
         <?php if ($errorMessage !== ''): ?>
             <div class="alert" role="alert"><?= escape($errorMessage) ?></div>
         <?php endif; ?>
