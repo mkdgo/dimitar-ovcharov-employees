@@ -35,7 +35,9 @@ Functions defined in `index.php`:
 | `escape($value)` | Escapes text with `htmlspecialchars` before rendering it in HTML, preventing input from being interpreted as HTML or JavaScript. |
 | `parseWorkDate($value, $dateMode)` | Parses supported date formats for the selected mode and returns a `DateTimeImmutable`. Returns `null` if the date is empty or invalid. |
 | `intervalDays($start, $end)` | Calculates the elapsed calendar days between two `DateTimeImmutable` values. |
-| `analyzeCsv($path, $dateMode)` | Opens and validates the CSV, groups intervals by project and employee, calculates overlaps, and returns the totals. Throws `RuntimeException` if records are invalid. |
+| `mergeWorkIntervals($intervals)` | Sorts one employee's project intervals and merges overlapping or adjacent intervals into a non-overlapping list. |
+| `sharedWorkDays($firstIntervals, $secondIntervals)` | Uses two pointers to calculate the shared days between two sorted interval lists in linear time. |
+| `analyzeCsv($path, $dateMode)` | Opens and validates the CSV, groups and merges intervals by project and employee, calculates pair totals, and returns the results. Throws `RuntimeException` if records are invalid. |
 
 ## PHP Functions Used
 
@@ -47,6 +49,7 @@ Functions defined in `index.php`:
 | `DateTimeImmutable::createFromFormat()` | Parses a date using a specific format. |
 | `DateTimeImmutable::getLastErrors()` | Checks whether date parsing produced errors or warnings. |
 | `DateTimeImmutable::diff()`, `format()`, `setTime()` | Calculate date differences and normalize the time to midnight. |
+| `isset()` | Checks whether both interval lists still contain an item during the two-pointer overlap scan. |
 | `array_key_exists()` | Checks whether the required CSV columns are present. |
 | `array_filter()`, `array_values()`, `array_keys()`, `array_column()` | Filter, reindex, and extract data from record and result arrays. |
 | `array_merge()`, `array_slice()` | Combine date parsing formats and limit the number of displayed errors. |

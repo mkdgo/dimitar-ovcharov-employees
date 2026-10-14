@@ -65,6 +65,50 @@ function intervalDays(DateTimeImmutable $start, DateTimeImmutable $end): int
     return (int) $start->diff($end)->format('%r%a');
 }
 
+function mergeWorkIntervals(array $intervals): array
+{
+    usort($intervals, static fn (array $left, array $right): int => [$left[0], $left[1]] <=> [$right[0], $right[1]]);
+
+    $mergedIntervals = [];
+    foreach ($intervals as $interval) {
+        $lastIndex = count($mergedIntervals) - 1;
+        if ($lastIndex < 0 || $interval[0] > $mergedIntervals[$lastIndex][1]) {
+            $mergedIntervals[] = $interval;
+        } elseif ($interval[1] > $mergedIntervals[$lastIndex][1]) {
+            $mergedIntervals[$lastIndex][1] = $interval[1];
+        }
+    }
+
+    return $mergedIntervals;
+}
+
+function sharedWorkDays(array $firstIntervals, array $secondIntervals): int
+{
+    $firstIndex = 0;
+    $secondIndex = 0;
+    $sharedDays = 0;
+
+    while (isset($firstIntervals[$firstIndex], $secondIntervals[$secondIndex])) {
+        [$firstStart, $firstEnd] = $firstIntervals[$firstIndex];
+        [$secondStart, $secondEnd] = $secondIntervals[$secondIndex];
+        $overlapStart = $firstStart > $secondStart ? $firstStart : $secondStart;
+        $overlapEnd = $firstEnd < $secondEnd ? $firstEnd : $secondEnd;
+
+        if ($overlapStart < $overlapEnd) {
+            $sharedDays += intervalDays($overlapStart, $overlapEnd);
+        }
+
+        if ($firstEnd <= $secondEnd) {
+            $firstIndex++;
+        }
+        if ($secondEnd <= $firstEnd) {
+            $secondIndex++;
+        }
+    }
+
+    return $sharedDays;
+}
+
 function analyzeCsv(string $path, string $dateMode): array
 {
     $handle = fopen($path, 'rb');
@@ -139,41 +183,20 @@ function analyzeCsv(string $path, string $dateMode): array
 
         $pairTotals = [];
         foreach ($projects as $projectId => $employees) {
+            foreach ($employees as $employeeId => $intervals) {
+                $employees[$employeeId] = mergeWorkIntervals($intervals);
+            }
+
             $employeeIds = array_keys($employees);
             sort($employeeIds, SORT_STRING);
             for ($firstIndex = 0, $employeeCount = count($employeeIds); $firstIndex < $employeeCount; $firstIndex++) {
                 for ($secondIndex = $firstIndex + 1; $secondIndex < $employeeCount; $secondIndex++) {
                     $firstId = $employeeIds[$firstIndex];
                     $secondId = $employeeIds[$secondIndex];
-                    $overlaps = [];
-                    foreach ($employees[$firstId] as [$firstStart, $firstEnd]) {
-                        foreach ($employees[$secondId] as [$secondStart, $secondEnd]) {
-                            $overlapStart = $firstStart > $secondStart ? $firstStart : $secondStart;
-                            $overlapEnd = $firstEnd < $secondEnd ? $firstEnd : $secondEnd;
-                            if ($overlapStart < $overlapEnd) {
-                                $overlaps[] = [$overlapStart, $overlapEnd];
-                            }
-                        }
-                    }
-                    if ($overlaps === []) {
+                    $projectDays = sharedWorkDays($employees[$firstId], $employees[$secondId]);
+                    if ($projectDays === 0) {
                         continue;
                     }
-
-                    usort($overlaps, static fn (array $left, array $right): int => $left[0] <=> $right[0]);
-                    $mergedEnd = null;
-                    $projectDays = 0;
-                    foreach ($overlaps as [$overlapStart, $overlapEnd]) {
-                        if ($mergedEnd === null || $overlapStart > $mergedEnd) {
-                            if ($mergedEnd !== null) {
-                                $projectDays += intervalDays($mergedStart, $mergedEnd);
-                            }
-                            $mergedStart = $overlapStart;
-                            $mergedEnd = $overlapEnd;
-                        } elseif ($overlapEnd > $mergedEnd) {
-                            $mergedEnd = $overlapEnd;
-                        }
-                    }
-                    $projectDays += intervalDays($mergedStart, $mergedEnd);
 
                     $pairKey = json_encode([$firstId, $secondId], JSON_THROW_ON_ERROR);
                     $pairTotals[$pairKey]['employee1'] = (string) $firstId;

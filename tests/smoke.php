@@ -27,18 +27,24 @@ try {
         '218,10,2020-01-05,2020-01-15',
         '143,12,2020-02-01,2020-02-05',
         '218,12,2020-02-03,2020-02-06',
+        '143,13,2020-03-01,2020-03-10',
+        '143,13,2020-03-05,2020-03-15',
+        '143,13,2020-04-01,2020-04-11',
+        '218,13,2020-03-08,2020-03-13',
+        '218,13,2020-04-05,2020-04-09',
     ];
     if (file_put_contents($path, implode(PHP_EOL, $rows)) === false) {
         throw new RuntimeException('Could not write the temporary test CSV.');
     }
 
     $analysis = analyzeCsv($path, 'AUTO');
-    check($analysis['topDays'] === 8, 'project overlap days should add to 8');
+    check($analysis['topDays'] === 17, 'overlap days should add across all shared projects');
     check(count($analysis['winners']) === 1, 'there should be one leading pair');
     check($analysis['winners'][0]['employee1'] === '143', 'first employee ID should be preserved');
     check($analysis['winners'][0]['employee2'] === '218', 'second employee ID should be preserved');
     check($analysis['winners'][0]['projects']['10'] === 6, 'duplicate assignment days should count once');
     check($analysis['winners'][0]['projects']['12'] === 2, 'second project overlap should be counted');
+    check($analysis['winners'][0]['projects']['13'] === 9, 'overlapping and separate intervals should be counted once');
     check(parseWorkDate('03/04/2020', 'DMY')?->format('Y-m-d') === '2020-04-03', 'DMY selection should parse slash dates');
     check(parseWorkDate('03/04/2020', 'MDY')?->format('Y-m-d') === '2020-03-04', 'MDY selection should parse slash dates');
     check(parseWorkDate('2020.04.03', 'AUTO')?->format('Y-m-d') === '2020-04-03', 'auto mode should parse year-first dates');
